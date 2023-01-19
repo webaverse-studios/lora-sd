@@ -15,6 +15,7 @@ def parse_args(input_args=None):
         required=True,
         help="Path to pretrained model or model identifier from huggingface.co/models.",
     )
+
     parser.add_argument(
         "--obj_prompt",
         type=str,
@@ -22,6 +23,7 @@ def parse_args(input_args=None):
         required=True,
         help="Dreambooth trigger word",
     )
+
     parser.add_argument(
         "--model_out_dir",
         type=str,
@@ -29,6 +31,7 @@ def parse_args(input_args=None):
         required=True,
         help="Directory where LoRA trained model is saved",
     )
+
     parser.add_argument(
         "--prompt",
         type=str,
@@ -37,6 +40,13 @@ def parse_args(input_args=None):
         help="Prompts passed to the LoRA model for Text to image generation, should be separated by \':\'.",
     )
 
+    parser.add_argument(
+        "--init_image",
+        type=str,
+        # default="photo:of:a",
+        required=True,
+        help="Path to the init image",
+    )
 
     parser.add_argument(
         "--img_res",
@@ -44,6 +54,7 @@ def parse_args(input_args=None):
         default=768,
         help="Resolution of resized images sent to training/img2img inferring LoRA model",
     )
+
     parser.add_argument(
         "--out_dir",
         type=str,
@@ -51,19 +62,20 @@ def parse_args(input_args=None):
         help="Directory where LoRA images would be saved",
     )
 
-
     parser.add_argument(
         "--lora_scale_unet",
         type=float,
         default="0.6",
         help="LORA_SCALE_UNET",
     )
+
     parser.add_argument(
         "--lora_scale_text",
         type=float,
         default="0.8",
         help="LORA_SCALE_TEXT_ENCODER",
     )
+
     parser.add_argument(
         "--cfg_scale",
         type=float,
@@ -91,7 +103,7 @@ def load_image(image_path, size = 768):
 
 def main(args):
 
-    pipe = StableDiffusionPipeline.from_pretrained(args.pretrained_model_name_or_path, torch_dtype=torch.float16, safety_checker = None).to("cuda")
+    pipe = StableDiffusionImg2ImgPipeline.from_pretrained(args.pretrained_model_name_or_path, torch_dtype=torch.float16, safety_checker = None).to("cuda")
     # pipe = StableDiffusionImg2ImgPipeline.from_pretrained(PRETRAINED_MODEL, torch_dtype=torch.float16, safety_checker = None).to("cuda")
     monkeypatch_lora(pipe.unet, torch.load(os.path.join(args.model_out_dir, "lora_weight.pt")))
     monkeypatch_lora(pipe.text_encoder, torch.load(os.path.join(args.model_out_dir, "lora_weight.text_encoder.pt")), target_replace_module=["CLIPAttention"])
@@ -100,6 +112,8 @@ def main(args):
 
     INFERENCE_PROMPT = args.prompt
     INFERENCE_PROMPT = [x.strip() for x in INFERENCE_PROMPT.split(':')]
+    INIT_IMAGE = args.init_image
+    INIT_IMAGE = load_image(INIT_IMAGE, 512)
 
     LORA_SCALE_UNET = args.lora_scale_unet 
     LORA_SCALE_TEXT_ENCODER = args.lora_scale_text
@@ -109,16 +123,17 @@ def main(args):
     tune_lora_scale(pipe.unet, LORA_SCALE_UNET)
     tune_lora_scale(pipe.text_encoder, LORA_SCALE_TEXT_ENCODER)
 
-    images = pipe(INFERENCE_PROMPT, num_inference_steps=NUM_INFERENCE_STEPS, guidance_scale=GUIDANCE).images
+    images = pipe(INFERENCE_PROMPT, image=INIT_IMAGE, num_inference_steps=NUM_INFERENCE_STEPS, guidance_scale=GUIDANCE).images
+    
 
-    if not os.path.exists(args.out_dir):
-        os.makedirs(args.out_dir)
+    # if not os.path.exists(args.out_dir):
+    #     os.makedirs(args.out_dir)
 
-    for idx,img in enumerate(images):
-        img.save(os.path.join(args.out_dir, f'lora_{args.obj_prompt}_{idx}.png'))
+    # for idx,img in enumerate(images):
+    #     img.save(os.path.join(args.out_dir, f'lora_{args.obj_prompt}_{idx}.png'))
 
+    return images
 
-    return 
 
 if __name__ == "__main__":
     args = parse_args()
