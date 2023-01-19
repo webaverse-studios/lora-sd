@@ -1,5 +1,6 @@
 import os 
-import lora_train
+# import lora_train
+import train_lora_dreambooth
 import inference_txt2img
 import inference_img2img
 
@@ -17,13 +18,13 @@ def train_lora(MODEL_NAME = "stable-diffusion-2-1-base",\
     TRAIN_BATCH_SIZE = 1
     GRAD_ACC_STEPS = 1
 
-    lora_train_args = lora_train.parse_args(input_args=['--pretrained_model_name_or_path', MODEL_NAME,\
-        '--instance_data_dir', INSTANCE_DATA_DIR, '--output_dir', OUTPUT_DIR, '--instance_prompt', KEYWORD, '--train_text_encoder',\
-        '--resolution', str(RESOLUTION), '--mixed_precision', fp_16_arg, '--train_batch_size', str(TRAIN_BATCH_SIZE),\
+    lora_train_args = train_lora_dreambooth.parse_args(input_args=['--pretrained_model_name_or_path', str(MODEL_NAME),\
+        '--instance_data_dir', str(INSTANCE_DATA_DIR), '--output_dir', str(OUTPUT_DIR), '--instance_prompt', str(KEYWORD), '--train_text_encoder',\
+        '--resolution', str(RESOLUTION), '--mixed_precision', str(fp_16_arg), '--train_batch_size', str(TRAIN_BATCH_SIZE),\
         '--gradient_accumulation_steps', str(GRAD_ACC_STEPS), '--learning_rate', str(UNET_LR), '--learning_rate_text', str(TEXT_ENC_LR), \
         '--lr_scheduler', 'constant', '--lr_warmup_steps', str(0), '--max_train_steps', str(TRAIN_STEPS), '--color_jitter', '--use_8bit_adam'])
 
-    lora_train.main(lora_train_args)
+    train_lora_dreambooth.main(lora_train_args)
 
 
 
