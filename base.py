@@ -10,6 +10,7 @@ def train_lora(MODEL_NAME = "stable-diffusion-2-1-base",\
     OUTPUT_DIR = 'lora_wassy_model',\
     RESOLUTION = 512,\
     KEYWORD = "wassy", \
+    LR_SCHEDULER = 'cosine',
     UNET_LR = 1e-4,
     TEXT_ENC_LR = 5e-5,
     TRAIN_STEPS = 1200
@@ -23,7 +24,7 @@ def train_lora(MODEL_NAME = "stable-diffusion-2-1-base",\
         '--instance_data_dir', str(INSTANCE_DATA_DIR), '--output_dir', str(OUTPUT_DIR), '--instance_prompt', str(KEYWORD), '--train_text_encoder',\
         '--resolution', str(RESOLUTION), '--mixed_precision', str(fp_16_arg), '--train_batch_size', str(TRAIN_BATCH_SIZE),\
         '--gradient_accumulation_steps', str(GRAD_ACC_STEPS), '--learning_rate', str(UNET_LR), '--learning_rate_text', str(TEXT_ENC_LR), \
-        '--lr_scheduler', str('constant'), '--lr_warmup_steps', str(0), '--max_train_steps', str(TRAIN_STEPS), '--color_jitter', '--use_8bit_adam'])
+        '--lr_scheduler', str(LR_SCHEDULER), '--lr_warmup_steps', str(0), '--max_train_steps', str(TRAIN_STEPS), '--color_jitter', '--use_8bit_adam'])
 
     train_lora_dreambooth.main(lora_train_args)
 

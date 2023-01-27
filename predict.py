@@ -24,12 +24,13 @@ class Predictor(BasePredictor):
     def predict(
         self,
         mode: Path = Input(description="Mode is assumed to be either \'train\' or \'inference\'", default = 'train' ),
-        model_path: Path = Input(description="Path to the pretrained base Stable Diffusion model directory", default = './stable-diffusion-2-1-base' ),
+        model_path: Path = Input(description="Path to the pretrained base Stable Diffusion model directory", default = './stable-diffusion-v1-4' ),
         model_out_dir: Path = Input(description="Path to the directory containing LoRA checkpoints/ where LoRA checkpoints should be saved ", default = './lora_sksperson_model' ),
         keyword: Path = Input(description="The word embedding to be added by the LoRA using the reference images in `instance_data_dir`", default = 'sksperson' ),
         instance_data_dir: str = Input(description="Directory containing the sample images for training, valid only for `train` mode", default='./images'),
         resolution: int = Input(description="Resolution to resize the scripts to, valid only for `train` mode", default=512),
-        unet_lr: float = Input(description="LR for training UNet, valid only for `train` mode", default=1e-4),
+        lr_scheduler: str = Input(description="lr scheduler name, valid only for `train` mode", default='cosine'),
+        unet_lr: float = Input(description="LR for training UNet, valid only for `train` mode", default=9e-4),
         text_encoder_lr: float = Input(description="LR for training Textencoder, valid only for `train` mode", default=5e-5),
         num_train_steps: int = Input(description="Number of training steps, usually = num_images * 300, valid only for `train` mode", default=2000),
         inference_prompt: str = Input(description="Prompt for running inference with the LoRA model, valid only for `inference` mode", default='a photo of an sksperson'),
@@ -43,6 +44,7 @@ class Predictor(BasePredictor):
                 OUTPUT_DIR = model_out_dir,\
                 RESOLUTION = resolution,\
                 KEYWORD = keyword, \
+                LR_SCHEDULER = lr_scheduler, \
                 UNET_LR = unet_lr,\
                 TEXT_ENC_LR = text_encoder_lr,\
                 TRAIN_STEPS = num_train_steps
@@ -63,3 +65,5 @@ class Predictor(BasePredictor):
                     )
         except Exception as e:
             return f"Error: {e}"
+
+            
