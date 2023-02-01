@@ -2,7 +2,7 @@ import os
 from PIL import Image
 import argparse
 import torch
-from lora_diffusion import monkeypatch_lora, tune_lora_scale
+from lora_diffusion import patch_pipe, tune_lora_scale
 from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline 
 
 
@@ -37,6 +37,13 @@ def parse_args(input_args=None):
         help="Prompts passed to the LoRA model for Text to image generation, should be separated by \':\'.",
     )
 
+    parser.add_argument(
+        "--init_image",
+        type=str,
+        # default="photo:of:a",
+        required=True,
+        help="Path to the init image",
+    )
 
     parser.add_argument(
         "--img_res",
@@ -44,6 +51,7 @@ def parse_args(input_args=None):
         default=768,
         help="Resolution of resized images sent to training/img2img inferring LoRA model",
     )
+
     parser.add_argument(
         "--out_dir",
         type=str,
@@ -51,23 +59,22 @@ def parse_args(input_args=None):
         help="Directory where LoRA images would be saved",
     )
 
-
     parser.add_argument(
         "--lora_scale_unet",
         type=float,
-        default="0.6",
+        default=1.0,
         help="LORA_SCALE_UNET",
     )
     parser.add_argument(
         "--lora_scale_text",
         type=float,
-        default="0.8",
+        default=1.0,
         help="LORA_SCALE_TEXT_ENCODER",
     )
     parser.add_argument(
         "--cfg_scale",
         type=float,
-        default="7.6",
+        default=7.6,
         help="GUIDANCE",
     )
     parser.add_argument(
@@ -75,6 +82,12 @@ def parse_args(input_args=None):
         type=int,
         default="50",
         help="GUIDANCE",
+    )
+    parser.add_argument(
+        '--ti_tuning_steps',
+        type=int,
+        default=1000,
+        help="number of steps each that model was trained on inversion and ti"
     )
 
     if input_args is not None:
@@ -89,36 +102,58 @@ def load_image(image_path, size = 768):
   #returns a PIL Image
   return init_img
 
-def main(args):
+def cbk(step, timestep, latents):
+    val = timestep.item() / 1000
+    it = 1 - val  # it starts from 0 to 1
+    tune_unet = 0 if it < 0.3 else LORA_SCALE_UNET 
+    tune_text = 0 if it < 0.3 else LORA_SCALE_TEXT
 
-    pipe = StableDiffusionPipeline.from_pretrained(args.pretrained_model_name_or_path, torch_dtype=torch.float16, safety_checker = None).to("cuda")
+    tune_lora_scale(pipe.unet, tune_unet)
+    tune_lora_scale(pipe.text_encoder, tune_text)
+
+def main(args):
+    global pipe 
+
+    global LORA_SCALE_UNET 
+    LORA_SCALE_UNET = args.lora_scale_unet
+    global LORA_SCALE_TEXT
+    LORA_SCALE_TEXT  = args.lora_scale_text
+    
+    pipe = StableDiffusionImg2ImgPipeline.from_pretrained(args.pretrained_model_name_or_path, torch_dtype=torch.float16, safety_checker = None).to("cuda")
     # pipe = StableDiffusionImg2ImgPipeline.from_pretrained(PRETRAINED_MODEL, torch_dtype=torch.float16, safety_checker = None).to("cuda")
-    monkeypatch_lora(pipe.unet, torch.load(os.path.join(args.model_out_dir, "lora_weight.pt")))
-    monkeypatch_lora(pipe.text_encoder, torch.load(os.path.join(args.model_out_dir, "lora_weight.text_encoder.pt")), target_replace_module=["CLIPAttention"])
+
+    patch_pipe(
+        pipe,
+        os.path.join(args.model_out_dir, f"step_{args.ti_tuning_steps}.safetensors"),
+        patch_text=True,
+        patch_ti=True,
+        patch_unet=True,
+    )
 
     print(f'Loaded model with trigger word \'{args.obj_prompt}\'')
 
     INFERENCE_PROMPT = args.prompt
     INFERENCE_PROMPT = [x.strip() for x in INFERENCE_PROMPT.split(':')]
+    INIT_IMAGE = args.init_image
+    INIT_IMAGE = load_image(INIT_IMAGE, 512)
 
-    LORA_SCALE_UNET = args.lora_scale_unet 
-    LORA_SCALE_TEXT_ENCODER = args.lora_scale_text
     GUIDANCE = args.cfg_scale
     NUM_INFERENCE_STEPS = args.num_steps
 
-    tune_lora_scale(pipe.unet, LORA_SCALE_UNET)
-    tune_lora_scale(pipe.text_encoder, LORA_SCALE_TEXT_ENCODER)
+    tune_lora_scale(pipe.unet, 1.00)
+    tune_lora_scale(pipe.text_encoder, 1.00)
 
-    images = pipe(INFERENCE_PROMPT, num_inference_steps=NUM_INFERENCE_STEPS, guidance_scale=GUIDANCE).images
+    images = pipe(INFERENCE_PROMPT, image=INIT_IMAGE, num_inference_steps=NUM_INFERENCE_STEPS, callback=cbk, callback_steps=1, guidance_scale=GUIDANCE).images
+    
 
-    if not os.path.exists(args.out_dir):
-        os.makedirs(args.out_dir)
+    # if not os.path.exists(args.out_dir):
+    #     os.makedirs(args.out_dir)
 
-    for idx,img in enumerate(images):
-        img.save(os.path.join(args.out_dir, f'lora_{args.obj_prompt}_{idx}.png'))
+    # for idx,img in enumerate(images):
+    #     img.save(os.path.join(args.out_dir, f'lora_{args.obj_prompt}_{idx}.png'))
 
+    return images
 
-    return 
 
 if __name__ == "__main__":
     args = parse_args()
