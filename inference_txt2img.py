@@ -6,6 +6,7 @@ from lora_diffusion import patch_pipe, tune_lora_scale
 from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline 
 
 pipe = None
+args = None
 
 def parse_args(input_args=None):
     parser = argparse.ArgumentParser(description="Simple example of a training script.")
@@ -99,14 +100,20 @@ def load_image(image_path, size = 768):
 def cbk(step, timestep, latents):
     val = timestep.item() / 1000
     it = 1 - val  # it starts from 0 to 1
-    tune_unet = 0 if it < 0.3 else args.lora_scale_unet 
-    tune_text = 0 if it < 0.3 else args.lora_scale_text 
+    tune_unet = 0 if it < 0.3 else LORA_SCALE_UNET 
+    tune_text = 0 if it < 0.3 else LORA_SCALE_TEXT
 
     tune_lora_scale(pipe.unet, tune_unet)
     tune_lora_scale(pipe.text_encoder, tune_text)
 
 def main(args):
-    global pipe
+    global pipe 
+
+    global LORA_SCALE_UNET 
+    LORA_SCALE_UNET = args.lora_scale_unet
+    global LORA_SCALE_TEXT
+    LORA_SCALE_TEXT  = args.lora_scale_text
+
     pipe = StableDiffusionPipeline.from_pretrained(args.pretrained_model_name_or_path, torch_dtype=torch.float16, safety_checker = None).to("cuda")
     # pipe = StableDiffusionImg2ImgPipeline.from_pretrained(PRETRAINED_MODEL, torch_dtype=torch.float16, safety_checker = None).to("cuda")
 
